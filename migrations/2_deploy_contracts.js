@@ -3,6 +3,7 @@ var Token = artifacts.require("Token");
 
 
 module.exports = (deployer, _votingBeginTime, _votingEndTime) => {
-  deployer.deploy(Voting, 1619493896, 1619499999);
+  const currentTime = parseInt(Date.now() / 1000); 
+  deployer.deploy(Voting, currentTime+100, currentTime+10000);
   deployer.deploy(Token);
 };

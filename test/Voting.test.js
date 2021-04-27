@@ -1,99 +1,63 @@
-const assert = require('assert');
-const ganache = require('ganache-cli');
-const Web3 = require('web3');
-const web3 = new Web3(ganache.provider());
+const timeMachine = require('ganache-time-traveler');
+const Voting = artifacts.require("Voting");
 
-const compiledFactory = require('../build/Voting.json');
-const compiledCampaign = require('../build/Token.json');
 
-let accounts;
-let factory;
-let campaignAddress;
-let campaign;
 
-beforeEach(async () => {
-	accounts = await web3.eth.getAccounts();
+contract('Voting', (accounts) => {
+    let VotingInstance;
+    let currentTime;
+    let bTime;
+    let eTime;
+    beforeEach(async() => {
+        let snapshot = await timeMachine.takeSnapshot();
+        snapshotId = snapshot['result'];
+    });
 
-	factory = await new web3.eth.Contract(JSON.parse(compiledFactory.interface))
-		.deploy({ data: compiledFactory.bytecode })
-		.send({ from: accounts[0], gas: '1000000' });
+    afterEach(async() => {
+        await timeMachine.revertToSnapshot(snapshotId);
+    });
 
-	await factory.methods.createCampaign('100').send({
-		from: accounts[0],
-		gas: '1000000'
-	});
+    before('Deploy Contracts', async() => {
+        currentTime = parseInt(Date.now() / 1000)
+        bTime = currentTime + 100;
+        eTime = currentTime + 10000;
+        VotingInstance = await Voting.new(bTime, eTime);
+    });
 
-	[campaignAddress] = await factory.methods.getDeployedCampaigns().call();
-	campaign = await new web3.eth.Contract(
-		JSON.parse(compiledCampaign.interface), 
-		campaignAddress
-	);
+
+    it('A voting will begin and end at the appointed time.', async () => {
+      const beginTime = await VotingInstance.votingBeginTime.call();
+      const endTime = await VotingInstance.votingEndTime.call();
+      assert.equal(bTime, beginTime,'Begintime not equal.');
+      assert.equal(eTime, endTime,'Endtime not equal.');
+      });
+
+    it('Before a voting, everyone can propose their proposals.', async () => {
+        await VotingInstance.createProposal("shao", "shaoContent");
+        const results = await VotingInstance.proposals.call(0);
+        assert.equal(results.proposer, accounts[0],'proposer is not equal to account');
+    });
+
+    it('During a voting, everyone can vote & choose their favorite proposals.', async () => {
+        await VotingInstance.createProposal("shao1", "shaoContent1");
+        // advance time to voting period
+        await timeMachine.advanceTimeAndBlock(1000);
+        await VotingInstance.vote(0);
+        const result = await VotingInstance.proposals.call(0);
+        const votingCount0 = result.voteCount;
+        assert.equal(votingCount0, 1, 'voteCount must be 1');
+    });
+
+    it('After the voting ends, the proposal with the highest votes will become the winner proposal and will be announced.', async () => {
+        await VotingInstance.createProposal("shao1", "shaoContent1");
+        // advance time to voting period
+        await timeMachine.advanceTimeAndBlock(1000);
+        await VotingInstance.vote(0)
+        // advance time to voting end
+        await timeMachine.advanceTimeAndBlock(100000);
+        const winningResult = await VotingInstance.winningProposal();
+        assert.equal(winningResult, 0, 'Winning Index must be 0');    
+        
+    });
 });
 
-describe('Campaigns', () => {
-	it('deploys a factory and a campaign', () => {
-		assert.ok(factory.options.address);
-		assert.ok(campaign.options.address);
-	});
-	it('marks caller as the campaign manager', async () => {
-		const manager = await campaign.methods.manager().call();
-		assert.equal(manager, accounts[0]);
-	});
-	it('allows people to contribute money and marks them as approvers', async () => {
-		await campaign.methods.contribute().send({
-			value: '200',
-			from: accounts[1]
-		});
-		const isContributor = await campaign.methods.approvers(accounts[1]).call();
-		assert(isContributor);
-	});
-	it('requires a minimum contribution', async () => {
-		try {
-			await campaign.methods.contribute().send({
-				value: '5',
-				from: accounts[1]
-			});
-			assert(false);
-		} catch (err) {
-			assert(err)
-		}
-	});
-	it('allows a manager to make a payment request', async () => {
-		await campaign.methods
-			.createRequest("Buy batteries", 100, accounts[1])
-			.send({
-				from: accounts[0],
-				gas: '1000000'
-			});
-		const request = await campaign.methods.requests(0).call();
-		assert.equal("Buy batteries", request.description);
-	});
-	it('processes requests', async () => {
-		await campaign.methods.contribute().send({
-			from: accounts[0],
-			value: web3.utils.toWei('10', 'ether')
-		});
-
-		await campaign.methods.createRequest('A', web3.utils.toWei('5', 'ether'), accounts[1])
-			.send({
-				from: accounts[0],
-				gas: '1000000'
-			});
-		await campaign.methods.approveRequest(0)
-			.send({
-				from: accounts[0],
-				gas: '1000000'
-			});
-		await campaign.methods.finalizeRequest(0)
-			.send({
-				from: accounts[0],
-				gas: '1000000'
-			});
-		
-		let balance = await web3.eth.getBalance(accounts[1]);
-		balance = web3.utils.fromWei(balance, 'ether');
-		balance = parseFloat(balance);
-		console.log(balance);
-		assert(balance > 104);
-	});
-});
