@@ -1,4 +1,4 @@
-# Your Program [80%]
+# Program
 * Location: ./contracts
 ## Run program, deploy to ganache-cli
 truffle migrate --network ganache
@@ -6,5 +6,5 @@ truffle migrate --network ganache
 * Location: ./test
 truffle test
 
-# Report.pdf [20%]
+# Report
 ./Report - HW7.pdf
