@@ -7,6 +7,7 @@ contract Token {
     mapping (uint256 => address) private _owners;
     mapping (uint256 => string) public _tokenURIs;
     mapping (uint256 => uint256) public _tokenRates;
+    mapping (uint256 => address) private _tokenApprovals;
     address public manager;
     uint private _tokenIds;
     
@@ -38,9 +39,6 @@ contract Token {
 
     }
     
-    function _exists(uint256 tokenId) internal view returns (bool) {
-        return _owners[tokenId] != address(0);
-    }
     
     function _setTokenURI(uint256 tokenId, string memory _tokenURI, uint256 _tokenRate) internal virtual {
         require(_exists(tokenId), "URI set of nonexistent token");
@@ -60,9 +58,49 @@ contract Token {
 
     }
     
+    function _exists(uint256 tokenId) internal view returns (bool) {
+        return _owners[tokenId] != address(0);
+    }
+
+    function _isApprovedOrOwner(address spender, uint256 tokenId) internal view virtual returns (bool) {
+        require(_exists(tokenId), "operator query for nonexistent token");
+        address owner = _owners[tokenId];
+        return (spender == owner || _tokenApprovals[tokenId] == spender);
+    }
+    
+    function transferFrom(address from, address to, uint256 tokenId) public {
+        require(_isApprovedOrOwner(from, tokenId), "transfer caller is not owner nor approved");
+
+        _transfer(from, to, tokenId);
+    }
+    
+     function _transfer(address from, address to, uint256 tokenId) internal virtual {
+        require(_owners[tokenId] == from, "transfer of token that is not own");
+        require(to != address(0), "transfer to the zero address");
+
+        _approve(address(0), tokenId);
+
+        _balances[from] -= 1;
+        _balances[to] += 1;
+        _owners[tokenId] = to;
+    }
+    
+    function approve(address to, uint256 tokenId) public {
+        address owner = _owners[tokenId];
+        require(to != owner, "approval to current owner");
+        require(msg.sender == owner);
+
+
+        _approve(to, tokenId);
+    }
+    
+    function _approve(address to, uint256 tokenId) internal virtual {
+        _tokenApprovals[tokenId] = to;
+    }
+    
     // Every users can query his balances of different tokens
     function balanceOf(address owner) public view returns (uint256) {
-        require(owner != address(0),  "alance query for the zero address");
+        require(owner != address(0),  "Balance query for the zero address");
         return _balances[owner];
     }
     
@@ -71,9 +109,9 @@ contract Token {
         require(msg.sender != address(0),  "balance query for the zero address");
         require(_owners[_tokenId] == address(this), "token has been sold");
         require(msg.value >= _tokenRates[_tokenId], "insufficient ethers");
-        
-        _balances[address(this)] -= 1;
-        _balances[msg.sender] += 1;
-        _owners[_tokenId] = msg.sender;
+        transferFrom(address(this), msg.sender, _tokenId);
+        // _balances[address(this)] -= 1;
+        // _balances[msg.sender] += 1;
+        // _owners[_tokenId] = msg.sender;
     }
 }

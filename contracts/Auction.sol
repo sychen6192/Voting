@@ -19,9 +19,9 @@ contract Auction {
     address tokenAddress;
 
     constructor(address _owner, uint _bidIncrement, uint _startTime, uint _endTime, uint _tokenId) public {
-        // require(_startTime >= _endTime);
-        // require(_startTime < now);
-        // require(_owner == address(0));
+        require(_startTime >= _endTime);
+        require(_startTime < now);
+        require(_owner == address(0));
 
         owner = _owner;
         bidIncrement = _bidIncrement;
@@ -54,7 +54,9 @@ contract Auction {
         payable
         public
         returns (bool success)
+        
     {
+        require(now < endTime && now > startTime);
         require(msg.value != 0);
 
         uint newBid = fundsByBidder[msg.sender] + msg.value;
@@ -80,6 +82,7 @@ contract Auction {
         public
         returns (bool success)
     {
+        require(now > endTime);
         address withdrawalAccount;
         uint withdrawalAmount;
         
@@ -101,9 +104,7 @@ contract Auction {
         msg.sender.transfer(withdrawalAmount);
         return true;
     }
+    
+
+
 }
-
-
-
-
-   

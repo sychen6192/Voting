@@ -27,7 +27,8 @@ contract('Token', (accounts) => {
     });
 
     it('Every users can send his tokens to other users.', async () => {
-        await TokenInstance.transfer(accounts[0], accounts[1], 0);
+        await TokenInstance.approve(accounts[1], 0);
+        await TokenInstance.transferFrom(accounts[0], accounts[1], 0);
         let result = await TokenInstance.balanceOf(accounts[0]);
         assert.equal(result, 0, 'token balance must be 1');
         result = await TokenInstance.balanceOf(accounts[1]);
